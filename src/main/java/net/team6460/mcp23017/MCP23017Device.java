@@ -1,19 +1,18 @@
 package net.team6460.mcp23017;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import com.pi4j.io.gpio.GpioPinDigitalInput;
 import com.pi4j.io.gpio.Pin;
-import com.pi4j.io.gpio.PinMode;
 import com.pi4j.io.gpio.PinPullResistance;
 import com.pi4j.io.gpio.PinState;
-import com.pi4j.io.gpio.RaspiPin;
 import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
 import com.pi4j.io.gpio.event.GpioPinListenerDigital;
 import com.pi4j.io.i2c.I2CBus;
 import com.pi4j.io.i2c.I2CDevice;
-import com.pi4j.wiringpi.GpioInterruptEvent;
 
 public class MCP23017Device {
 
@@ -47,7 +46,7 @@ public class MCP23017Device {
 
 	private static final byte INTF_ADDR = 0x0e;
 
-	private static final byte INTCAPA_ADDR = 0x10;
+	private static final byte INTCAP_ADDR = 0x10;
 
 	private static final byte GPIO_ADDR = 0x12;
 
@@ -86,6 +85,7 @@ public class MCP23017Device {
 	}
 
 	public synchronized void setPinMode(int pin, MCPPinMode mode) throws IOException {
+		intr.dispatchInterrupts();
 		if (pin < 0 || pin > 15)
 			throw new IllegalArgumentException("Invalid pin number");
 		pinModes[pin] = mode;
@@ -113,6 +113,7 @@ public class MCP23017Device {
 	}
 
 	public synchronized MCPPinState readPin(int pin) throws IOException {
+		intr.dispatchInterrupts();
 		if (pin < 0 || pin > 15)
 			throw new IllegalArgumentException("Invalid pin number");
 		if (pinModes[pin] == MCPPinMode.MODE_OUTPUT) {
@@ -128,7 +129,7 @@ public class MCP23017Device {
 	public class SeparateInterruptHandler implements InterruptHandler {
 		private final GpioPinDigitalInput pinA, pinB;
 
-		public SeparateInterruptHandler(Pin pinA, Pin pinB) {
+		protected SeparateInterruptHandler(Pin pinA, Pin pinB) {
 			super();
 			this.pinA = Singletons.gpio.provisionDigitalInputPin(pinA, PinPullResistance.PULL_UP);
 			this.pinB = Singletons.gpio.provisionDigitalInputPin(pinB, PinPullResistance.PULL_UP);
@@ -142,15 +143,54 @@ public class MCP23017Device {
 		}
 
 		protected void dispatchPinAInterrupts() {
-			// TODO Auto-generated method stub
+			try {
+				byte intcap = (byte) dev.read(INTCAP_ADDR);
+				
+				byte intf = (byte) dev.read(INTF_ADDR);
+				for (int i = 0; i < 8; i++) {
+					if ((intf & (1 << i)) != 0) {
+						if ((intcap & (1 << i)) != 0) {
+							for (MCPInterruptHandler h : handlers.get(i)) {
+								h.onRisingEdge();
+							}
+						}
+					}
+					
+				}
+
+			} catch (IOException e) {
+				System.err.println("[MCP23017] IOException dispatching interrupts on channel A: " + e.getMessage());
+			}
 
 		}
 
 		protected void dispatchPinBInterrupts() {
-			// TODO Auto-generated method stub
+			try {
+				byte intcap = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
+				
+				byte intf = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				for (int i = 0; i < 8; i++) {
+					if ((intf & (1 << i)) != 0) {
+						if ((intcap & (1 << i)) != 0) {
+							for (MCPInterruptHandler h : handlers.get(i+8)) {
+								h.onRisingEdge();
+							}
+						}
+					}
+					
+				}
+
+			} catch (IOException e) {
+				System.err.println("[MCP23017] IOException dispatching interrupts on channel B: " + e.getMessage());
+			}
 
 		}
-
+		private List<ArrayList<MCPInterruptHandler>> handlers = new ArrayList<ArrayList<MCPInterruptHandler>>();
+		{
+			for (int i = 0; i < 16; i++) {
+				handlers.add(new ArrayList<MCPInterruptHandler>());
+			}
+		}
 		@Override
 		public void startInterruptHandler() {
 			pinA.addListener(new GpioPinListenerDigital() {
@@ -170,6 +210,18 @@ public class MCP23017Device {
 				}
 
 			});
+		}
+
+		@Override
+		public void addInterruptHandler(int pin, MCPInterruptHandler handler) {
+			handlers.get(pin).add(handler);
+		}
+
+		@Override
+		public void dispatchInterrupts() {
+			this.dispatchPinAInterrupts();
+			this.dispatchPinBInterrupts();
+
 		}
 
 	}
@@ -197,8 +249,44 @@ public class MCP23017Device {
 			});
 		}
 
-		protected void dispatchInterrupts() {
-			// TODO Auto-generated method stub
+		private List<ArrayList<MCPInterruptHandler>> handlers = new ArrayList<ArrayList<MCPInterruptHandler>>();
+		{
+			for (int i = 0; i < 16; i++) {
+				handlers.add(new ArrayList<MCPInterruptHandler>());
+			}
+		}
+
+		public void dispatchInterrupts() {
+			try {
+				byte intcapA = (byte) dev.read(INTCAP_ADDR);
+				byte intcapB = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
+				byte intfA = (byte) dev.read(INTF_ADDR);
+				byte intfB = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				for (int i = 0; i < 8; i++) {
+					if ((intfA & (1 << i)) != 0) {
+						if ((intcapA & (1 << i)) != 0) {
+							for (MCPInterruptHandler h : handlers.get(i)) {
+								h.onRisingEdge();
+							}
+						}
+					}
+					if ((intfB & (1 << i)) != 0) {
+						if ((intcapB & (1 << i)) != 0) {
+							for (MCPInterruptHandler h : handlers.get(i + 8)) {
+								h.onRisingEdge();
+							}
+						}
+					}
+				}
+
+			} catch (IOException e) {
+				System.err.println("[MCP23017] IOException dispatching interrupts: " + e.getMessage());
+			}
+		}
+
+		@Override
+		public void addInterruptHandler(int pin, MCPInterruptHandler handler) {
+			handlers.get(pin).add(handler);
 
 		}
 
@@ -213,6 +301,17 @@ public class MCP23017Device {
 
 		@Override
 		public void startInterruptHandler() {
+			// noop
+
+		}
+
+		@Override
+		public void addInterruptHandler(int pin, MCPInterruptHandler handler) {
+			throw new IllegalStateException("No interrupt pins were set on the device");
+		}
+
+		@Override
+		public void dispatchInterrupts() {
 			// noop
 
 		}
@@ -234,6 +333,10 @@ public class MCP23017Device {
 		boolean shouldMirrorInterrupts();
 
 		void startInterruptHandler();
+
+		void addInterruptHandler(int pin, MCPInterruptHandler handler);
+
+		void dispatchInterrupts();
 	}
 
 	public static class Builder {
