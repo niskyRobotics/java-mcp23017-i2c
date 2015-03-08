@@ -8,8 +8,12 @@ import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.i2c.I2CBus;
 import com.pi4j.io.i2c.I2CFactory;
 
-class Singletons {
+public class Singletons {
 	static final GpioController gpio = GpioFactory.getInstance();
+	public static final GpioController getGPIO(){
+		return gpio;
+	}
+	
 	private static final HashMap<Integer, I2CBus> i2c = new HashMap<>();
 
 	static synchronized final I2CBus getI2CBus(int id) throws IOException {

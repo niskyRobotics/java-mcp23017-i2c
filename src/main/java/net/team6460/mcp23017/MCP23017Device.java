@@ -13,6 +13,7 @@ import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
 import com.pi4j.io.gpio.event.GpioPinListenerDigital;
 import com.pi4j.io.i2c.I2CBus;
 import com.pi4j.io.i2c.I2CDevice;
+import com.sun.xml.internal.bind.v2.runtime.reflect.opt.Const;
 
 public class MCP23017Device {
 
@@ -54,6 +55,8 @@ public class MCP23017Device {
 
 	private static final byte ZEROS = 0b00000000;
 
+	private static final byte ONES = (byte) 0b11111111;
+	
 	public enum MCPPinMode {
 		MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
 	}
@@ -84,7 +87,11 @@ public class MCP23017Device {
 		dev.write(addrGpinten, newGpinten);
 	}
 
-	public synchronized void setPinMode(int pin, MCPPinMode mode) throws IOException {
+	public synchronized void addInterruptHandler(int pin, MCPInterruptHandler inth){
+		this.intr.addInterruptHandler(pin, inth);
+	}
+	
+	public synchronized MCP23017Device setPinMode(int pin, MCPPinMode mode) throws IOException {
 		intr.dispatchInterrupts();
 		if (pin < 0 || pin > 15)
 			throw new IllegalArgumentException("Invalid pin number");
@@ -105,7 +112,42 @@ public class MCP23017Device {
 
 			}
 		}
+		return this;
 
+	}
+	
+	public synchronized void setBulkPinModeBankA(MCPPinMode mode) throws IOException{
+		intr.dispatchInterrupts();
+		if (mode == MCPPinMode.MODE_OUTPUT)
+			dev.write(IODIR_ADDR, ZEROS);
+		else {
+			dev.write(IODIR_ADDR, ONES);
+
+			if (mode == MCPPinMode.MODE_INPUT_PULLUP)
+				dev.write(GPPU_ADDR, ONES);
+
+			else {
+				dev.write(GPPU_ADDR, ZEROS);
+
+			}
+		}
+	}
+	
+	public synchronized void setBulkPinModeBankB(MCPPinMode mode) throws IOException{
+		intr.dispatchInterrupts();
+		if (mode == MCPPinMode.MODE_OUTPUT)
+			dev.write(IODIR_ADDR+A_TO_B_OFFSET, ZEROS);
+		else {
+			dev.write(IODIR_ADDR+A_TO_B_OFFSET, ONES);
+
+			if (mode == MCPPinMode.MODE_INPUT_PULLUP)
+				dev.write(GPPU_ADDR+A_TO_B_OFFSET, ONES);
+
+			else {
+				dev.write(GPPU_ADDR+A_TO_B_OFFSET, ZEROS);
+
+			}
+		}
 	}
 
 	public enum MCPPinState {
