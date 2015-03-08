@@ -56,7 +56,7 @@ public class MCP23017Device {
 	private static final byte ZEROS = 0b00000000;
 
 	private static final byte ONES = (byte) 0b11111111;
-	
+
 	public enum MCPPinMode {
 		MODE_OUTPUT, MODE_INPUT, MODE_INPUT_PULLUP
 	}
@@ -87,10 +87,10 @@ public class MCP23017Device {
 		dev.write(addrGpinten, newGpinten);
 	}
 
-	public synchronized void addInterruptHandler(int pin, MCPInterruptHandler inth){
+	public synchronized void addInterruptHandler(int pin, MCPInterruptHandler inth) {
 		this.intr.addInterruptHandler(pin, inth);
 	}
-	
+
 	public synchronized MCP23017Device setPinMode(int pin, MCPPinMode mode) throws IOException {
 		intr.dispatchInterrupts();
 		if (pin < 0 || pin > 15)
@@ -115,10 +115,10 @@ public class MCP23017Device {
 		return this;
 
 	}
-	
-	public synchronized void setBulkPinModeBankA(MCPPinMode mode) throws IOException{
+
+	public synchronized void setBulkPinModeBankA(MCPPinMode mode) throws IOException {
 		intr.dispatchInterrupts();
-		for(int i = 0; i < 8; i++){
+		for (int i = 0; i < 8; i++) {
 			pinModes[i] = mode;
 		}
 		if (mode == MCPPinMode.MODE_OUTPUT)
@@ -135,22 +135,22 @@ public class MCP23017Device {
 			}
 		}
 	}
-	
-	public synchronized void setBulkPinModeBankB(MCPPinMode mode) throws IOException{
+
+	public synchronized void setBulkPinModeBankB(MCPPinMode mode) throws IOException {
 		intr.dispatchInterrupts();
-		for(int i = 8; i < 16; i++){
+		for (int i = 8; i < 16; i++) {
 			pinModes[i] = mode;
 		}
 		if (mode == MCPPinMode.MODE_OUTPUT)
-			dev.write(IODIR_ADDR+A_TO_B_OFFSET, ZEROS);
+			dev.write(IODIR_ADDR + A_TO_B_OFFSET, ZEROS);
 		else {
-			dev.write(IODIR_ADDR+A_TO_B_OFFSET, ONES);
+			dev.write(IODIR_ADDR + A_TO_B_OFFSET, ONES);
 
 			if (mode == MCPPinMode.MODE_INPUT_PULLUP)
-				dev.write(GPPU_ADDR+A_TO_B_OFFSET, ONES);
+				dev.write(GPPU_ADDR + A_TO_B_OFFSET, ONES);
 
 			else {
-				dev.write(GPPU_ADDR+A_TO_B_OFFSET, ZEROS);
+				dev.write(GPPU_ADDR + A_TO_B_OFFSET, ZEROS);
 
 			}
 		}
@@ -174,6 +174,26 @@ public class MCP23017Device {
 		return ((gpioVal & (1 << pinBit)) != 0) ? MCPPinState.STATE_LOW : MCPPinState.STATE_HIGH;
 	}
 
+	public synchronized MCP23017Device writePin(int pin, MCPPinState val) throws IOException {
+		intr.dispatchInterrupts();
+		if (pin < 0 || pin > 15)
+			throw new IllegalArgumentException("Invalid pin number");
+		if (pinModes[pin] != MCPPinMode.MODE_OUTPUT) {
+			throw new IllegalArgumentException("Pin is currently an input.");
+		}
+		;
+		int pinBit = pin % 8;
+		int addrGpio = GPIO_ADDR + (pin > 7 ? A_TO_B_OFFSET : 0);
+		if (val == MCPPinState.STATE_LOW) {
+			dev.write(addrGpio, (byte) (dev.read(addrGpio) & (~(1 << pinBit))));
+		} else {
+			dev.write(addrGpio, (byte) (dev.read(addrGpio) | (1 << pinBit)));
+		}
+		
+		return this;
+
+	}
+
 	public class SeparateInterruptHandler implements InterruptHandler {
 		private final GpioPinDigitalInput pinA, pinB;
 
@@ -193,10 +213,10 @@ public class MCP23017Device {
 		protected void dispatchPinAInterrupts() {
 			try {
 				byte intcap, intf;
-				synchronized(MCP23017Device.this){
-				intcap = (byte) dev.read(INTCAP_ADDR);
-				
-				intf = (byte) dev.read(INTF_ADDR);
+				synchronized (MCP23017Device.this) {
+					intcap = (byte) dev.read(INTCAP_ADDR);
+
+					intf = (byte) dev.read(INTF_ADDR);
 				}
 				for (int i = 0; i < 8; i++) {
 					if ((intf & (1 << i)) != 0) {
@@ -210,7 +230,7 @@ public class MCP23017Device {
 							}
 						}
 					}
-					
+
 				}
 
 			} catch (IOException e) {
@@ -222,15 +242,15 @@ public class MCP23017Device {
 		protected void dispatchPinBInterrupts() {
 			try {
 				byte intcap, intf;
-				synchronized(MCP23017Device.this){
-				intcap = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
-				
-				intf = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				synchronized (MCP23017Device.this) {
+					intcap = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
+
+					intf = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
 				}
 				for (int i = 0; i < 8; i++) {
 					if ((intf & (1 << i)) != 0) {
 						if ((intcap & (1 << i)) != 0) {
-							for (MCPInterruptHandler h : handlers.get(i+8)) {
+							for (MCPInterruptHandler h : handlers.get(i + 8)) {
 								h.onRisingEdge();
 							}
 						} else {
@@ -239,7 +259,7 @@ public class MCP23017Device {
 							}
 						}
 					}
-					
+
 				}
 
 			} catch (IOException e) {
@@ -247,12 +267,14 @@ public class MCP23017Device {
 			}
 
 		}
+
 		private List<ArrayList<MCPInterruptHandler>> handlers = new ArrayList<ArrayList<MCPInterruptHandler>>();
 		{
 			for (int i = 0; i < 16; i++) {
 				handlers.add(new ArrayList<MCPInterruptHandler>());
 			}
 		}
+
 		@Override
 		public void startInterruptHandler() {
 			pinA.addListener(new GpioPinListenerDigital() {
@@ -321,11 +343,11 @@ public class MCP23017Device {
 		public void dispatchInterrupts() {
 			try {
 				byte intcapA, intcapB, intfA, intfB;
-				synchronized(MCP23017Device.this){
-				intcapA = (byte) dev.read(INTCAP_ADDR);
-				intcapB = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
-				intfA = (byte) dev.read(INTF_ADDR);
-				intfB = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				synchronized (MCP23017Device.this) {
+					intcapA = (byte) dev.read(INTCAP_ADDR);
+					intcapB = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
+					intfA = (byte) dev.read(INTF_ADDR);
+					intfB = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
 				}
 				for (int i = 0; i < 8; i++) {
 					if ((intfA & (1 << i)) != 0) {
