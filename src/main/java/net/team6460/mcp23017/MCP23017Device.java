@@ -144,9 +144,12 @@ public class MCP23017Device {
 
 		protected void dispatchPinAInterrupts() {
 			try {
-				byte intcap = (byte) dev.read(INTCAP_ADDR);
+				byte intcap, intf;
+				synchronized(MCP23017Device.this){
+				intcap = (byte) dev.read(INTCAP_ADDR);
 				
-				byte intf = (byte) dev.read(INTF_ADDR);
+				intf = (byte) dev.read(INTF_ADDR);
+				}
 				for (int i = 0; i < 8; i++) {
 					if ((intf & (1 << i)) != 0) {
 						if ((intcap & (1 << i)) != 0) {
@@ -170,9 +173,12 @@ public class MCP23017Device {
 
 		protected void dispatchPinBInterrupts() {
 			try {
-				byte intcap = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
+				byte intcap, intf;
+				synchronized(MCP23017Device.this){
+				intcap = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
 				
-				byte intf = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				intf = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				}
 				for (int i = 0; i < 8; i++) {
 					if ((intf & (1 << i)) != 0) {
 						if ((intcap & (1 << i)) != 0) {
@@ -266,10 +272,13 @@ public class MCP23017Device {
 
 		public void dispatchInterrupts() {
 			try {
-				byte intcapA = (byte) dev.read(INTCAP_ADDR);
-				byte intcapB = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
-				byte intfA = (byte) dev.read(INTF_ADDR);
-				byte intfB = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				byte intcapA, intcapB, intfA, intfB;
+				synchronized(MCP23017Device.this){
+				intcapA = (byte) dev.read(INTCAP_ADDR);
+				intcapB = (byte) dev.read(INTCAP_ADDR + A_TO_B_OFFSET);
+				intfA = (byte) dev.read(INTF_ADDR);
+				intfB = (byte) dev.read(INTF_ADDR + A_TO_B_OFFSET);
+				}
 				for (int i = 0; i < 8; i++) {
 					if ((intfA & (1 << i)) != 0) {
 						if ((intcapA & (1 << i)) != 0) {
