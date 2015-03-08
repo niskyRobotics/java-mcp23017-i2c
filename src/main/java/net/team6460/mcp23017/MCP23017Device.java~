@@ -287,10 +287,6 @@ public class MCP23017Device {
 							for (MCPInterruptHandler h : handlers.get(i + 8)) {
 								h.onRisingEdge();
 							}
-						} else {
-							for (MCPInterruptHandler h : handlers.get(i)) {
-								h.onFallingEdge();
-							}
 						}
 					}
 				}
