@@ -118,6 +118,9 @@ public class MCP23017Device {
 	
 	public synchronized void setBulkPinModeBankA(MCPPinMode mode) throws IOException{
 		intr.dispatchInterrupts();
+		for(int i = 0; i < 8; i++){
+			pinModes[i] = mode;
+		}
 		if (mode == MCPPinMode.MODE_OUTPUT)
 			dev.write(IODIR_ADDR, ZEROS);
 		else {
@@ -135,6 +138,9 @@ public class MCP23017Device {
 	
 	public synchronized void setBulkPinModeBankB(MCPPinMode mode) throws IOException{
 		intr.dispatchInterrupts();
+		for(int i = 8; i < 16; i++){
+			pinModes[i] = mode;
+		}
 		if (mode == MCPPinMode.MODE_OUTPUT)
 			dev.write(IODIR_ADDR+A_TO_B_OFFSET, ZEROS);
 		else {
